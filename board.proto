@@ -1,0 +1,17 @@
+message Ban {
+    enum Koma {
+        KYO = 1;
+        // 1:5
+        ICHI = 2;
+        // 1:6
+        IRO = 3;
+
+        // Empty
+        KUU = 101;
+    }
+    message Col {
+        repeated Koma koma = 1;
+    }
+    // Col[x][y] -> Koma
+    repeated Col col = 1;
+}
