@@ -1,13 +1,16 @@
 message Ban {
     enum Koma {
-        KYO = 1;
-        // 1:5
-        ICHI = 2;
-        // 1:6
-        IRO = 3;
+        // Fu
+        F = 1;
+        // Kyo
+        K = 2;
+        // Strawberry 1:5
+        S = 3;
+        // Color 1:6
+        C = 4;
 
         // Empty
-        KUU = 101;
+        E = 101;
     }
     message Col {
         repeated Koma koma = 1;

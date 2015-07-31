@@ -23,26 +23,31 @@ var _ = math.Inf
 type Ban_Koma int32
 
 const (
-	Ban_KYO Ban_Koma = 1
-	// 1:5
-	Ban_ICHI Ban_Koma = 2
-	// 1:6
-	Ban_IRO Ban_Koma = 3
+	// Fu
+	Ban_F Ban_Koma = 1
+	// Kyo
+	Ban_K Ban_Koma = 2
+	// Strawberry 1:5
+	Ban_S Ban_Koma = 3
+	// Color 1:6
+	Ban_C Ban_Koma = 4
 	// Empty
-	Ban_KUU Ban_Koma = 101
+	Ban_E Ban_Koma = 101
 )
 
 var Ban_Koma_name = map[int32]string{
-	1:   "KYO",
-	2:   "ICHI",
-	3:   "IRO",
-	101: "KUU",
+	1:   "F",
+	2:   "K",
+	3:   "S",
+	4:   "C",
+	101: "E",
 }
 var Ban_Koma_value = map[string]int32{
-	"KYO":  1,
-	"ICHI": 2,
-	"IRO":  3,
-	"KUU":  101,
+	"F": 1,
+	"K": 2,
+	"S": 3,
+	"C": 4,
+	"E": 101,
 }
 
 func (x Ban_Koma) Enum() *Ban_Koma {
