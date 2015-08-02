@@ -1,6 +1,7 @@
-package main
+package shogi
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -10,36 +11,38 @@ import (
 	"github.com/ogiekako/shogi/board"
 )
 
-func main() {
-	ban := &board.Ban{}
-	buf, err := ioutil.ReadAll(os.Stdin)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	proto.UnmarshalText(string(buf), ban)
+const bucket = 1 << 20
 
-	step := solve(ban)
-	fmt.Println(step)
-}
-
-var memo = make(map[string]bool)
-
-// add returns true if memo did not already contain the specified element
-func add(b *board.Ban) bool {
-	buf, err := proto.Marshal(b)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	if key := string(buf); memo[key] {
-		return false
-	} else {
-		memo[key] = true
-		return true
+func FindLoop(ban *board.Ban, baseLimit int64) (int64, *board.Ban, *os.File) {
+	for limit := baseLimit; ; limit *= 2 {
+		f, err := ioutil.TempFile("/tmp", "eigou")
+		if err != nil {
+			log.Fatalln(err)
+		}
+		var step int64
+		step, ban = solve(ban, limit, f)
+		if step >= 0 {
+			log.Printf("output: %s\n", f.Name())
+			log.Printf("step: %d\n", step*2)
+			return step, ban, f
+		}
+		err = os.Remove(f.Name())
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 }
 
-func get(b *board.Ban, x, y int) board.Ban_Koma {
-	return b.Col[x].Koma[y]
+func (b *Ban) get(x, y int) board.Ban_Koma {
+	x, y = adjust(x, y)
+	return b.ban.Col[x].Koma[y]
+}
+
+type Ban struct {
+	ban *board.Ban
+	// Empty (x,y)
+	x int
+	y int
 }
 
 func adjust(x, y int) (int, int) {
@@ -56,88 +59,77 @@ func adjust(x, y int) (int, int) {
 	return x, y
 }
 
-func swaped(b *board.Ban, x1, y1, x2, y2 int) *board.Ban {
-	b = proto.Clone(b).(*board.Ban)
-	k := b.Col[x1].Koma[y1]
-	b.Col[x1].Koma[y1] = b.Col[x2].Koma[y2]
-	b.Col[x2].Koma[y2] = k
-	return b
+func (b *Ban) swap(x, y int) {
+	k := b.ban.Col[b.x].Koma[b.y]
+	b.ban.Col[b.x].Koma[b.y] = b.ban.Col[x].Koma[y]
+	b.ban.Col[x].Koma[y] = k
+	b.x, b.y = x, y
 }
 
-func nexts(b *board.Ban) []*board.Ban {
-	x, y := 0, 0
-loop:
+func empty(b *board.Ban) (x, y int) {
 	for i := 0; i < 2; i++ {
 		for j := 0; j < 9; j++ {
 			if b.Col[i].Koma[j] == board.Ban_E {
-				x, y = i, j
-				break loop
+				return i, j
 			}
 		}
 	}
-	var res []*board.Ban
-	ox, oy := adjust(x, y-2)
-	if k := get(b, ox, oy); k == board.Ban_K || k == board.Ban_F {
-		nx, ny := adjust(ox, oy+1)
-		res = append(res, swaped(b, x, y, nx, ny))
-	}
-	ox, oy = adjust(x+1, y-6)
-	if k := get(b, ox, oy); k == board.Ban_S {
-		nx, ny := adjust(ox, oy+1)
-		res = append(res, swaped(b, x, y, nx, ny))
-	}
-	ox, oy = adjust(x+1, y-7)
-	if k := get(b, ox, oy); k == board.Ban_C {
-		nx, ny := adjust(ox, oy+1)
-		res = append(res, swaped(b, x, y, nx, ny))
-	}
-	return res
+	panic("No empty")
 }
 
-func solve(init *board.Ban) int {
-	fmt.Printf("solving:\n%v\n", sshow(init))
-	// add(init)
-	var bq []*board.Ban
-	var sq []int
-	bq = append(bq, init)
-	sq = append(sq, 0)
-	for max := 0; ; {
-		b := bq[0]
-		s := sq[0]
+func (b *Ban) move() {
+	x, y := b.x, b.y
 
-		if max < s {
-			max = s
-			if max%10000 == 0 {
-				if max%100000 == 0 {
-					fmt.Printf("\n%d", max)
-				}
-				fmt.Printf(".")
-			}
-		}
+	px, py := 0, 0
+	switch b.get(x, y-1) {
+	case board.Ban_F, board.Ban_K:
+		px, py = adjust(x, y+1)
+		// (1,5)
+	case board.Ban_S:
+		px, py = adjust(x+1, y+5)
+		// (1,6)
+	case board.Ban_C:
+		px, py = adjust(x+1, y+6)
+	case board.Ban_N:
+		px, py = adjust(x+1, y+2)
+	}
+	b.swap(px, py)
+}
 
-		bq = bq[1:]
-		sq = sq[1:]
-		for _, nb := range nexts(b) {
-			if proto.Equal(init, nb) {
-				fmt.Println()
-				return s + 1
-			}
-			// if !add(nb) {
-			// continue
-			// }
-			bq = append(bq, nb)
-			sq = append(sq, s+1)
-		}
+func newBan(b *board.Ban) *Ban {
+	x, y := empty(b)
+	return &Ban{
+		ban: b,
+		x:   x,
+		y:   y,
 	}
 }
 
-func sshow(b *board.Ban) string {
+// solve returns step or the board moved limit times.
+func solve(init *board.Ban, limit int64, output *os.File) (int64, *board.Ban) {
+	w := gzip.NewWriter(output)
+	defer w.Close()
+	log.Printf("solving: %s limit: %d", Sshow(init), limit)
+	ban := newBan(proto.Clone(init).(*board.Ban))
+	for step := int64(0); step < limit; {
+		fmt.Fprintf(w, "%d%d\n", ban.x+1, ban.y+1)
+		ban.move()
+		step++
+
+		if proto.Equal(init, ban.ban) {
+			return step, ban.ban
+		}
+	}
+	return -1, ban.ban
+}
+
+func Sshow(b *board.Ban) string {
 	res := ""
 	for j := 0; j < 9; j++ {
 		for i := 1; i >= 0; i-- {
 			res += b.Col[i].Koma[j].String()
 		}
-		res += "\n"
+		res += " "
 	}
 	return res
 }

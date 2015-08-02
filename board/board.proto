@@ -8,6 +8,8 @@ message Ban {
         S = 3;
         // Color 1:6
         C = 4;
+        // Kei 1:3
+        N = 5;
 
         // Empty
         E = 101;

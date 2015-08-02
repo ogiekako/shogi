@@ -31,6 +31,8 @@ const (
 	Ban_S Ban_Koma = 3
 	// Color 1:6
 	Ban_C Ban_Koma = 4
+	// Kei 1:3
+	Ban_N Ban_Koma = 5
 	// Empty
 	Ban_E Ban_Koma = 101
 )
@@ -40,6 +42,7 @@ var Ban_Koma_name = map[int32]string{
 	2:   "K",
 	3:   "S",
 	4:   "C",
+	5:   "N",
 	101: "E",
 }
 var Ban_Koma_value = map[string]int32{
@@ -47,6 +50,7 @@ var Ban_Koma_value = map[string]int32{
 	"K": 2,
 	"S": 3,
 	"C": 4,
+	"N": 5,
 	"E": 101,
 }
 
